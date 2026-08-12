@@ -23,18 +23,17 @@
   /* Left panel — lesson list */
   .sidebar { width: 340px; min-width: 260px; background: white; border-right: 1px solid #e0ddd5;
     overflow-y: auto; flex-shrink: 0; transition: width .2s ease; }
-  .sidebar.collapsed { width: 0; min-width: 0; overflow: hidden; border-right: none; }
+  .sidebar.collapsed { width: 44px; min-width: 44px; overflow: hidden; }
   .sidebar-header { padding: 14px 18px; font-size: .8rem; font-weight: 700; text-transform: uppercase;
     letter-spacing: .08em; color: #888; border-bottom: 1px solid #f0ede6; background: #faf9f6;
     display: flex; align-items: center; justify-content: space-between; white-space: nowrap; }
-  .toggle-btn { background: none; border: none; cursor: pointer; color: #aaa; padding: 2px 4px;
-    font-size: 1rem; line-height: 1; border-radius: 4px; transition: color .15s; flex-shrink: 0; }
+  .toggle-btn { background: none; border: none; cursor: pointer; color: #aaa; padding: 4px 6px;
+    font-size: 1.1rem; line-height: 1; border-radius: 4px; transition: color .15s; flex-shrink: 0; }
   .toggle-btn:hover { color: #1e3a5f; }
-  .sidebar-open-btn { position: absolute; top: 50%; left: 0; transform: translateY(-50%);
-    background: white; border: 1px solid #e0ddd5; border-left: none; border-radius: 0 6px 6px 0;
-    padding: 10px 6px; cursor: pointer; color: #888; transition: color .15s; z-index: 10; }
-  .sidebar-open-btn:hover { color: #1e3a5f; }
-  .reader-wrap { position: relative; flex: 1; overflow: hidden; }
+  .sidebar.collapsed .sidebar-label { display: none; }
+  .sidebar.collapsed #lessonList { display: none; }
+  .sidebar.collapsed .sidebar-header { justify-content: center; padding: 14px 0; }
+  .reader-wrap { flex: 1; overflow: hidden; }
 
   .topic-label { padding: 10px 18px 4px; font-size: .78rem; font-weight: 700; color: #1e3a5f;
     text-transform: uppercase; letter-spacing: .06em; background: #f3f1eb; border-top: 1px solid #e8e5dd; }
@@ -52,7 +51,7 @@
   .no-text-tag { font-size: .68rem; color: #bbb; font-style: italic; }
 
   /* Right panel — reading area */
-  .reader { flex: 1; overflow-y: auto; padding: 36px 48px; background: #faf9f6; height: 100%; }
+  .reader { flex: 1; overflow-y: auto; padding: 36px 48px; background: #faf9f6; }
   .reader-empty { display: flex; flex-direction: column; align-items: center; justify-content: center;
     height: 100%; color: #aaa; text-align: center; gap: 12px; }
   .reader-empty svg { opacity: .3; }
@@ -77,8 +76,7 @@
   @media (max-width: 700px) {
     .layout { flex-direction: column; height: auto; }
     .sidebar { width: 100% !important; min-width: 0 !important; height: 260px; border-right: none; border-bottom: 1px solid #e0ddd5; }
-    .sidebar.collapsed { height: 0; overflow: hidden; border-bottom: none; }
-    .sidebar-open-btn { top: 0; left: 50%; transform: translateX(-50%); border-radius: 0 0 6px 6px; border-top: none; border-left: 1px solid #e0ddd5; padding: 6px 12px; }
+    .sidebar.collapsed { height: 44px !important; overflow: hidden; }
     .reader { padding: 20px; }
     .text-section { padding: 20px; }
   }
@@ -98,13 +96,12 @@
 <div class="layout">
   <div class="sidebar" id="sidebar">
     <div class="sidebar-header">
-      <span>Lessons</span>
-      <button class="toggle-btn" id="toggleBtn" title="Collapse lesson list" onclick="toggleSidebar()">&#x2190;</button>
+      <span class="sidebar-label">Lessons</span>
+      <button class="toggle-btn" id="toggleBtn" title="Toggle lesson list" onclick="toggleSidebar()">&#x2190;</button>
     </div>
     <div id="lessonList"></div>
   </div>
   <div class="reader-wrap">
-    <button class="sidebar-open-btn" id="openBtn" title="Show lesson list" onclick="toggleSidebar()" style="display:none">&#x2192;</button>
   <div class="reader" id="reader">
     <div class="reader-empty">
       <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
@@ -112,7 +109,6 @@
       </svg>
       <p>Select a lesson to start reading</p>
     </div>
-  </div>
   </div>
 </div>
 
@@ -250,11 +246,10 @@ function selectLesson(idx) {
 
 function toggleSidebar() {
   const sidebar = document.getElementById('sidebar');
-  const openBtn = document.getElementById('openBtn');
   const toggleBtn = document.getElementById('toggleBtn');
   const collapsed = sidebar.classList.toggle('collapsed');
-  openBtn.style.display = collapsed ? 'block' : 'none';
-  toggleBtn.innerHTML = collapsed ? '' : '&#x2190;';
+  toggleBtn.innerHTML = collapsed ? '&#x2192;' : '&#x2190;';
+  toggleBtn.title = collapsed ? 'Show lessons' : 'Hide lessons';
 }
 
 // Init — default to grade 3
