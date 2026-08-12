@@ -270,12 +270,11 @@ function renderList() {
     }
     const el = document.createElement('div');
     const hasText = l.texts.length > 0;
-    const displayTitle = item.storyTitle || l.lesson;
     el.className = 'lesson-item' + (hasText ? '' : ' no-text') + (flatIdx === currentIdx ? ' active' : '') + (item.ab ? ' sub-item' : '');
     el.innerHTML = `
       <span class="lesson-num">${item.num}</span>
       <div style="min-width:0">
-        <div class="lesson-title">${displayTitle}</div>
+        <div class="lesson-title">${l.lesson}</div>
         ${item.ab ? `<span class="ab-tag">${item.ab}</span>` : (!hasText ? '<div class="lesson-skill">coming soon</div>' : '')}
       </div>`;
     if (hasText) el.onclick = () => selectLesson(flatIdx);
