@@ -52,6 +52,8 @@
   .sub-item:hover { background: #f5f3ee; }
   .sub-item.active { border-left-color: #1e3a5f; }
   .ab-tag { font-size: .7rem; font-weight: 700; color: #1e3a5f; text-transform: uppercase; letter-spacing: .05em; }
+  .ab-header-tag { display: inline-block; margin-top: 8px; font-size: .78rem; font-weight: 700;
+    background: #eef2f7; color: #1e3a5f; border-radius: 12px; padding: 3px 12px; letter-spacing: .04em; }
 
   /* Right panel — reading area */
   .reader { flex: 1; overflow-y: auto; padding: 36px 48px; background: #faf9f6; }
@@ -186,6 +188,15 @@ function selectGrade(g) {
     </div>`;
 }
 
+// Split a raw text string on embedded "Text 2:" into separate readings
+function splitRawTexts(raw) {
+  const idx = raw.search(/\n\nText 2:/i);
+  if (idx >= 0) {
+    return [raw.slice(0, idx).trim(), raw.slice(idx + 2).trim()];
+  }
+  return [raw];
+}
+
 // Build flat item list for the sidebar — dual-text lessons become two entries
 function buildItems(grade) {
   const items = [];
@@ -193,10 +204,8 @@ function buildItems(grade) {
   DATA[grade].forEach((l, li) => {
     lessonNum++;
     if (l.texts.length === 2) {
-      const labelA = parseText(l.texts[0]).textLabel || 'Lesson A';
-      const labelB = parseText(l.texts[1]).textLabel || 'Lesson B';
-      items.push({ lesson: l, li, ti: 0, ab: labelA, num: lessonNum + 'A' });
-      items.push({ lesson: l, li, ti: 1, ab: labelB, num: lessonNum + 'B' });
+      items.push({ lesson: l, li, ti: 0, ab: 'Lesson A', num: lessonNum + 'A' });
+      items.push({ lesson: l, li, ti: 1, ab: 'Lesson B', num: lessonNum + 'B' });
     } else {
       items.push({ lesson: l, li, ti: 0, ab: null, num: lessonNum });
     }
@@ -235,31 +244,44 @@ function renderList() {
   });
 }
 
+function renderTextBlock(raw, blockLabel) {
+  const { title, author, body } = parseText(raw);
+  return `
+    <div class="text-section">
+      <div class="text-label">${blockLabel}</div>
+      ${title ? `<div class="text-title">${title}</div>` : ''}
+      ${author ? `<div class="text-author">${author}</div>` : ''}
+      <div class="text-body">${body.split('\n').map(l=>l.trim()).filter(Boolean).map(l=>`<p>${l.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</p>`).join('')}</div>
+    </div>`;
+}
+
 function selectLesson(flatIdx) {
   currentIdx = flatIdx;
   renderList();
-  const { lesson: l, ti } = currentItems[flatIdx];
+  const { lesson: l, ti, ab } = currentItems[flatIdx];
   const reader = document.getElementById('reader');
 
   let html = `
     <div class="lesson-header">
       <div class="topic-tag">${l.topic}</div>
       <h2>${l.lesson}</h2>
+      ${ab ? `<div class="ab-header-tag">${ab}</div>` : ''}
     </div>`;
 
   if (l.texts.length === 0) {
     html += `<p class="no-text-msg">No reading text available for this lesson yet.</p>`;
   } else {
     const raw = l.texts[ti];
-    const { textLabel, title, author, body } = parseText(raw);
-    const label = textLabel || (l.texts.length > 1 ? (ti === 0 ? 'Lesson A' : 'Lesson B') : 'Reading');
-    html += `
-      <div class="text-section">
-        <div class="text-label">${label}</div>
-        ${title ? `<div class="text-title">${title}</div>` : ''}
-        ${author ? `<div class="text-author">${author}</div>` : ''}
-        <div class="text-body">${body.split('\n').map(l=>l.trim()).filter(Boolean).map(l=>`<p>${l.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</p>`).join('')}</div>
-      </div>`;
+    const parts = splitRawTexts(raw);
+    if (parts.length === 2) {
+      // Cell had Text 1 + Text 2 embedded — show as two blocks
+      html += renderTextBlock(parts[0], 'Text 1');
+      html += renderTextBlock(parts[1], 'Text 2');
+    } else {
+      // Single reading
+      const label = ab ? ab : 'Reading';
+      html += renderTextBlock(raw, label);
+    }
   }
 
   reader.innerHTML = html;
