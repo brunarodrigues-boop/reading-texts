@@ -58,7 +58,9 @@
     color: #aaa; margin-bottom: 16px; }
   .text-title { font-size: 1.15rem; font-weight: 700; margin-bottom: 4px; color: #1a1a1a; }
   .text-author { font-size: .85rem; color: #888; margin-bottom: 18px; font-style: italic; }
-  .text-body { font-size: 1rem; line-height: 1.85; color: #2d2d2d; white-space: pre-wrap; }
+  .text-body { font-size: 1rem; line-height: 1.85; color: #2d2d2d; }
+  .text-body p { margin-bottom: 1.1em; }
+  .text-body p:last-child { margin-bottom: 0; }
 
   .no-text-msg { color: #aaa; font-style: italic; font-size: .95rem; margin-top: 40px; text-align: center; }
 
@@ -104,12 +106,39 @@ let currentIdx   = null;
 
 function parseText(raw) {
   const lines = raw.split('\n');
-  let title = '', author = '', body = '';
   let i = 0;
-  if (lines[0] && !lines[0].startsWith('Written by')) { title = lines[i++]; }
-  if (i < lines.length && lines[i] && lines[i].startsWith('Written by')) { author = lines[i++]; }
-  body = lines.slice(i).join('\n').trim();
-  return { title, author, body };
+  let textLabel = '', title = '', subtitle = '', author = '';
+
+  // Optional "Text N:" label (for compare-contrast lessons)
+  if (lines[i] && /^Text \d+:?\s*$/i.test(lines[i].trim())) {
+    textLabel = lines[i++].trim().replace(/:$/, '');
+  }
+
+  // Title
+  while (i < lines.length && !lines[i].trim()) i++;
+  if (i < lines.length) title = lines[i++];
+
+  // Subtitle/series — a non-author line immediately before the author line or a blank line
+  if (i < lines.length && lines[i].trim() && !/^(written by|by )\s/i.test(lines[i].trim())) {
+    const next = lines[i + 1] || '';
+    if (/^(written by|by )\s/i.test(next.trim()) || !next.trim()) {
+      subtitle = lines[i++];
+    }
+  }
+
+  // Author: handles "Written by", "Written By", "By "
+  if (i < lines.length && /^(written by|by )\s/i.test(lines[i].trim())) {
+    author = lines[i++];
+  }
+
+  // Combine subtitle into author display
+  if (subtitle) author = subtitle + (author ? ' — ' + author : '');
+
+  // Skip blank lines before body
+  while (i < lines.length && !lines[i].trim()) i++;
+
+  const body = lines.slice(i).join('\n').trim();
+  return { textLabel, title, author, body };
 }
 
 function renderGrades() {
@@ -185,14 +214,14 @@ function selectLesson(idx) {
     html += `<p class="no-text-msg">No reading text available for this lesson yet.</p>`;
   } else {
     l.texts.forEach((raw, ti) => {
-      const { title, author, body } = parseText(raw);
-      const label = l.texts.length > 1 ? (ti === 0 ? 'Reading A' : 'Reading B') : 'Reading';
+      const { textLabel, title, author, body } = parseText(raw);
+      const label = textLabel || (l.texts.length > 1 ? (ti === 0 ? 'Reading A' : 'Reading B') : 'Reading');
       html += `
         <div class="text-section">
           <div class="text-label">${label}</div>
           ${title ? `<div class="text-title">${title}</div>` : ''}
           ${author ? `<div class="text-author">${author}</div>` : ''}
-          <div class="text-body">${body.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</div>
+          <div class="text-body">${body.split('\n').map(l=>l.trim()).filter(Boolean).map(l=>`<p>${l.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</p>`).join('')}</div>
         </div>`;
     });
   }
