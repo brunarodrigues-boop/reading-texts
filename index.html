@@ -5,98 +5,122 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>Reading Lessons</title>
 <style>
+  @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap');
+
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: 'Georgia', serif; background: #f7f5f0; color: #2d2d2d; min-height: 100vh; }
+  body { font-family: 'Nunito', sans-serif; background: #fff8f0; color: #1a1a1a; min-height: 100vh; }
 
-  header { background: #1e3a5f; color: white; padding: 18px 24px; display: flex; align-items: center; gap: 16px; }
-  header h1 { font-size: 1.4rem; font-weight: 700; letter-spacing: .02em; }
+  /* ── Header ── */
+  header { background: linear-gradient(135deg, #f97316, #ea580c); color: white;
+    padding: 16px 24px; display: flex; align-items: center; gap: 14px; }
+  header h1 { font-size: 1.5rem; font-weight: 800; letter-spacing: .01em; }
 
-  .grade-bar { background: #fff; border-bottom: 1px solid #e0ddd5; padding: 12px 24px; display: flex; gap: 10px; flex-wrap: wrap; }
-  .grade-btn { padding: 8px 20px; border-radius: 20px; border: 2px solid #1e3a5f; background: white; color: #1e3a5f;
-    font-size: .95rem; cursor: pointer; font-weight: 600; transition: all .15s; }
-  .grade-btn:hover { background: #eef2f7; }
-  .grade-btn.active { background: #1e3a5f; color: white; }
-  .grade-btn:disabled { opacity: .4; cursor: not-allowed; border-color: #aaa; color: #aaa; }
+  /* ── Grade bar ── */
+  .grade-bar { background: #fff; border-bottom: 2px solid #ffe8d6; padding: 12px 20px;
+    display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+  .grade-bar-label { font-size: .85rem; font-weight: 700; color: #9a6448; margin-right: 4px; }
+  .grade-btn { padding: 9px 22px; border-radius: 24px; border: 2px solid #f97316;
+    background: white; color: #f97316; font-family: 'Nunito', sans-serif;
+    font-size: 1rem; font-weight: 700; cursor: pointer; transition: all .15s; }
+  .grade-btn:hover { background: #fff1e6; }
+  .grade-btn.active { background: #f97316; color: white; }
+  .grade-btn:disabled { opacity: .35; cursor: not-allowed; border-color: #ccc; color: #ccc; }
 
-  .layout { display: flex; height: calc(100vh - 108px); }
+  /* ── Layout ── */
+  .layout { display: flex; height: calc(100vh - 112px); }
 
-  /* Left panel — lesson list */
-  .sidebar { width: 340px; min-width: 260px; background: white; border-right: 1px solid #e0ddd5;
-    overflow-y: auto; flex-shrink: 0; transition: width .2s ease; }
-  .sidebar.collapsed { width: 44px; min-width: 44px; overflow: hidden; }
-  .sidebar-header { padding: 14px 18px; font-size: .8rem; font-weight: 700; text-transform: uppercase;
-    letter-spacing: .08em; color: #888; border-bottom: 1px solid #f0ede6; background: #faf9f6;
-    display: flex; align-items: center; justify-content: space-between; white-space: nowrap; }
-  .toggle-btn { background: none; border: none; cursor: pointer; color: #aaa; padding: 4px 6px;
-    font-size: 1.1rem; line-height: 1; border-radius: 4px; transition: color .15s; flex-shrink: 0; }
-  .toggle-btn:hover { color: #1e3a5f; }
-  .sidebar.collapsed .sidebar-label { display: none; }
+  /* ── Sidebar ── */
+  .sidebar { width: 320px; min-width: 320px; background: white;
+    border-right: 2px solid #ffe8d6; overflow-y: auto; flex-shrink: 0;
+    transition: width .2s ease, min-width .2s ease; }
+  .sidebar.collapsed { width: 48px; min-width: 48px; overflow: hidden; }
+  .sidebar.collapsed .sidebar-label,
   .sidebar.collapsed #lessonList { display: none; }
   .sidebar.collapsed .sidebar-header { justify-content: center; padding: 14px 0; }
 
-  .topic-label { padding: 10px 18px 4px; font-size: .78rem; font-weight: 700; color: #1e3a5f;
-    text-transform: uppercase; letter-spacing: .06em; background: #f3f1eb; border-top: 1px solid #e8e5dd; }
+  .sidebar-header { padding: 14px 18px; font-size: .85rem; font-weight: 800;
+    color: #c2410c; border-bottom: 2px solid #ffe8d6; background: #fff8f0;
+    display: flex; align-items: center; justify-content: space-between; white-space: nowrap;
+    text-transform: uppercase; letter-spacing: .06em; }
+  .toggle-btn { background: none; border: none; cursor: pointer; color: #f97316;
+    padding: 4px 6px; font-size: 1.2rem; line-height: 1; border-radius: 6px;
+    transition: background .15s; flex-shrink: 0; }
+  .toggle-btn:hover { background: #fff1e6; }
 
-  .lesson-item { padding: 11px 18px; border-bottom: 1px solid #f3f1eb; cursor: pointer;
-    display: flex; align-items: flex-start; gap: 10px; transition: background .1s; }
-  .lesson-item:hover { background: #f5f3ee; }
-  .lesson-item.active { background: #eef2f7; border-left: 3px solid #1e3a5f; }
-  .lesson-item.no-text { cursor: default; opacity: .5; }
+  .topic-label { padding: 10px 16px 6px; font-size: .75rem; font-weight: 800; color: #9a6448;
+    text-transform: uppercase; letter-spacing: .07em; background: #fff3ea;
+    border-top: 1px solid #ffe8d6; }
+
+  .lesson-item { padding: 13px 16px; border-bottom: 1px solid #fff0e6; cursor: pointer;
+    display: flex; align-items: center; gap: 10px; transition: background .12s; }
+  .lesson-item:hover { background: #fff5ee; }
+  .lesson-item.active { background: #fff1e6; border-left: 4px solid #f97316; }
+  .lesson-item.no-text { cursor: default; opacity: .4; }
   .lesson-item.no-text:hover { background: white; }
-  .lesson-num { font-size: .72rem; color: #aaa; font-weight: 700; min-width: 22px; padding-top: 2px; }
-  .lesson-name { font-size: .88rem; line-height: 1.4; color: #2d2d2d; }
-  .lesson-item.active .lesson-name { color: #1e3a5f; font-weight: 600; }
-  .text-badge { margin-top: 3px; font-size: .68rem; color: #888; }
-  .no-text-tag { font-size: .68rem; color: #bbb; font-style: italic; }
-  .sub-item { border-left: 3px solid #e8e5dd; background: #fdfcfa; }
-  .sub-item:hover { background: #f5f3ee; }
-  .sub-item.active { border-left-color: #1e3a5f; }
-  .ab-tag { font-size: .7rem; font-weight: 700; color: #1e3a5f; text-transform: uppercase; letter-spacing: .05em; }
-  .ab-header-tag { display: inline-block; margin-top: 8px; font-size: .78rem; font-weight: 700;
-    background: #eef2f7; color: #1e3a5f; border-radius: 12px; padding: 3px 12px; letter-spacing: .04em; }
+  .lesson-num { font-size: .78rem; color: #ccc; font-weight: 800; min-width: 26px;
+    text-align: right; flex-shrink: 0; }
+  .lesson-item.active .lesson-num { color: #f97316; }
+  .lesson-title { font-size: .98rem; font-weight: 700; color: #1a1a1a; line-height: 1.35; }
+  .lesson-item.active .lesson-title { color: #c2410c; }
+  .lesson-skill { font-size: .76rem; color: #aaa; margin-top: 2px; font-weight: 400;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 220px; }
+  .ab-tag { display: inline-block; margin-top: 4px; font-size: .7rem; font-weight: 800;
+    background: #fff1e6; color: #ea580c; border-radius: 8px; padding: 1px 8px;
+    text-transform: uppercase; letter-spacing: .04em; }
+  .lesson-item.active .ab-tag { background: #f97316; color: white; }
+  .no-text-tag { font-size: .72rem; color: #ccc; font-style: italic; }
+  .sub-item { padding-left: 28px; }
 
-  /* Right panel — reading area */
-  .reader { flex: 1; overflow-y: auto; padding: 36px 48px; background: #faf9f6; }
-  .reader-empty { display: flex; flex-direction: column; align-items: center; justify-content: center;
-    height: 100%; color: #aaa; text-align: center; gap: 12px; }
-  .reader-empty svg { opacity: .3; }
+  /* ── Reader ── */
+  .reader { flex: 1; overflow-y: auto; padding: 36px 48px; background: #fff8f0; }
+  .reader-empty { display: flex; flex-direction: column; align-items: center;
+    justify-content: center; height: 100%; color: #d4a98a; text-align: center; gap: 14px; }
+  .reader-empty p { font-size: 1.1rem; font-weight: 600; }
 
   .lesson-header { margin-bottom: 28px; }
-  .lesson-header .topic-tag { font-size: .75rem; font-weight: 700; color: #1e3a5f; text-transform: uppercase;
-    letter-spacing: .08em; margin-bottom: 6px; }
-  .lesson-header h2 { font-size: 1.35rem; font-weight: 700; color: #1a1a1a; line-height: 1.3; }
+  .lesson-header .topic-tag { font-size: .78rem; font-weight: 800; color: #ea580c;
+    text-transform: uppercase; letter-spacing: .08em; margin-bottom: 6px; }
+  .lesson-header h2 { font-size: 1.1rem; font-weight: 700; color: #7c4a2d; line-height: 1.4; }
+  .ab-header-tag { display: inline-block; margin-top: 8px; font-size: .82rem; font-weight: 800;
+    background: #f97316; color: white; border-radius: 14px; padding: 3px 14px; }
 
-  .text-section { background: white; border-radius: 12px; padding: 32px 36px; margin-bottom: 24px;
-    border: 1px solid #e8e5dd; max-width: 720px; box-shadow: 0 1px 4px rgba(0,0,0,.04); }
-  .text-label { font-size: .72rem; font-weight: 700; text-transform: uppercase; letter-spacing: .1em;
-    color: #aaa; margin-bottom: 16px; }
-  .text-title { font-size: 1.15rem; font-weight: 700; margin-bottom: 4px; color: #1a1a1a; }
-  .text-author { font-size: .85rem; color: #888; margin-bottom: 18px; font-style: italic; }
-  .text-body { font-size: 1rem; line-height: 1.85; color: #2d2d2d; }
-  .text-body p { margin-bottom: 1.1em; }
+  .text-section { background: white; border-radius: 16px; padding: 32px 36px;
+    margin-bottom: 28px; border: 2px solid #ffe8d6; max-width: 680px;
+    box-shadow: 0 2px 8px rgba(249,115,22,.06); }
+  .text-label { font-size: .75rem; font-weight: 800; text-transform: uppercase;
+    letter-spacing: .1em; color: #f97316; margin-bottom: 14px; }
+  .text-title { font-size: 1.5rem; font-weight: 800; margin-bottom: 4px; color: #1a1a1a;
+    line-height: 1.25; font-family: 'Nunito', sans-serif; }
+  .text-author { font-size: .9rem; color: #999; margin-bottom: 20px; font-style: italic; }
+  .text-body { font-family: Georgia, serif; font-size: 1.15rem; line-height: 2;
+    color: #222; }
+  .text-body p { margin-bottom: 1.2em; }
   .text-body p:last-child { margin-bottom: 0; }
 
-  .no-text-msg { color: #aaa; font-style: italic; font-size: .95rem; margin-top: 40px; text-align: center; }
+  .no-text-msg { color: #ccc; font-size: 1rem; margin-top: 40px; text-align: center; font-weight: 600; }
 
   @media (max-width: 700px) {
     .layout { flex-direction: column; height: auto; }
-    .sidebar { width: 100% !important; min-width: 0 !important; height: 260px; border-right: none; border-bottom: 1px solid #e0ddd5; }
-    .sidebar.collapsed { height: 44px !important; overflow: hidden; }
-    .reader { padding: 20px; }
+    .sidebar { width: 100% !important; min-width: 0 !important; height: 280px;
+      border-right: none; border-bottom: 2px solid #ffe8d6; }
+    .sidebar.collapsed { height: 48px !important; overflow: hidden; }
+    .reader { padding: 20px 16px; }
     .text-section { padding: 20px; }
+    .text-title { font-size: 1.25rem; }
+    .text-body { font-size: 1.05rem; }
   }
 </style>
 </head>
 <body>
 
 <header>
-  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+  <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
     <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>
   </svg>
-  <h1>Reading Lessons</h1>
+  <h1>Reading Time!</h1>
 </header>
 
-<div class="grade-bar" id="gradeBar"></div>
+<div class="grade-bar"><span class="grade-bar-label">My Grade:</span><span id="gradeBar" style="display:flex;gap:10px;flex-wrap:wrap;"></span></div>
 
 <div class="layout">
   <div class="sidebar" id="sidebar">
@@ -108,10 +132,10 @@
   </div>
   <div class="reader" id="reader">
     <div class="reader-empty">
-      <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+      <svg width="72" height="72" viewBox="0 0 24 24" fill="none" stroke="#f97316" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" opacity=".4">
         <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>
       </svg>
-      <p>Select a lesson to start reading</p>
+      <p>Pick a story from the list!</p>
     </div>
   </div>
 </div>
@@ -181,10 +205,10 @@ function selectGrade(g) {
   renderList();
   document.getElementById('reader').innerHTML = `
     <div class="reader-empty">
-      <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+      <svg width="72" height="72" viewBox="0 0 24 24" fill="none" stroke="#f97316" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" opacity=".4">
         <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>
       </svg>
-      <p>Select a lesson to start reading</p>
+      <p>Pick a story from the list!</p>
     </div>`;
 }
 
@@ -197,6 +221,17 @@ function splitRawTexts(raw) {
   return [raw];
 }
 
+// Extract the main story title from a raw text entry
+function getStoryTitle(raw) {
+  if (!raw) return '';
+  const lines = raw.split('\n');
+  // Skip "Text N:" label line if present
+  let i = /^Text \d+:?\s*$/i.test(lines[0] ? lines[0].trim() : '') ? 1 : 0;
+  const titleLine = lines[i] || '';
+  // Strip inline "Text N: " prefix
+  return titleLine.replace(/^Text \d+:\s*/i, '').trim();
+}
+
 // Build flat item list for the sidebar — dual-text lessons become two entries
 function buildItems(grade) {
   const items = [];
@@ -204,10 +239,13 @@ function buildItems(grade) {
   DATA[grade].forEach((l, li) => {
     lessonNum++;
     if (l.texts.length === 2) {
-      items.push({ lesson: l, li, ti: 0, ab: 'Lesson A', num: lessonNum + 'A' });
-      items.push({ lesson: l, li, ti: 1, ab: 'Lesson B', num: lessonNum + 'B' });
+      items.push({ lesson: l, li, ti: 0, ab: 'Lesson A', num: lessonNum + 'A',
+        storyTitle: getStoryTitle(l.texts[0]) });
+      items.push({ lesson: l, li, ti: 1, ab: 'Lesson B', num: lessonNum + 'B',
+        storyTitle: getStoryTitle(l.texts[1]) });
     } else {
-      items.push({ lesson: l, li, ti: 0, ab: null, num: lessonNum });
+      const title = l.texts.length > 0 ? getStoryTitle(l.texts[0]) : '';
+      items.push({ lesson: l, li, ti: 0, ab: null, num: lessonNum, storyTitle: title });
     }
   });
   return items;
@@ -232,12 +270,13 @@ function renderList() {
     }
     const el = document.createElement('div');
     const hasText = l.texts.length > 0;
+    const displayTitle = item.storyTitle || l.lesson;
     el.className = 'lesson-item' + (hasText ? '' : ' no-text') + (flatIdx === currentIdx ? ' active' : '') + (item.ab ? ' sub-item' : '');
     el.innerHTML = `
       <span class="lesson-num">${item.num}</span>
-      <div>
-        <div class="lesson-name">${l.lesson}</div>
-        <div class="text-badge">${item.ab ? `<span class="ab-tag">${item.ab}</span>` : (!hasText ? '<span class="no-text-tag">no text yet</span>' : '')}</div>
+      <div style="min-width:0">
+        <div class="lesson-title">${displayTitle}</div>
+        ${item.ab ? `<span class="ab-tag">${item.ab}</span>` : (!hasText ? '<div class="lesson-skill">coming soon</div>' : '')}
       </div>`;
     if (hasText) el.onclick = () => selectLesson(flatIdx);
     list.appendChild(el);
