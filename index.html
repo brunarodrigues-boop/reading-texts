@@ -48,6 +48,10 @@
   .lesson-item.active .lesson-name { color: #1e3a5f; font-weight: 600; }
   .text-badge { margin-top: 3px; font-size: .68rem; color: #888; }
   .no-text-tag { font-size: .68rem; color: #bbb; font-style: italic; }
+  .sub-item { border-left: 3px solid #e8e5dd; background: #fdfcfa; }
+  .sub-item:hover { background: #f5f3ee; }
+  .sub-item.active { border-left-color: #1e3a5f; }
+  .ab-tag { font-size: .7rem; font-weight: 700; color: #1e3a5f; text-transform: uppercase; letter-spacing: .05em; }
 
   /* Right panel — reading area */
   .reader { flex: 1; overflow-y: auto; padding: 36px 48px; background: #faf9f6; }
@@ -182,13 +186,34 @@ function selectGrade(g) {
     </div>`;
 }
 
+// Build flat item list for the sidebar — dual-text lessons become two entries
+function buildItems(grade) {
+  const items = [];
+  let lessonNum = 0;
+  DATA[grade].forEach((l, li) => {
+    lessonNum++;
+    if (l.texts.length === 2) {
+      const labelA = parseText(l.texts[0]).textLabel || 'Lesson A';
+      const labelB = parseText(l.texts[1]).textLabel || 'Lesson B';
+      items.push({ lesson: l, li, ti: 0, ab: labelA, num: lessonNum + 'A' });
+      items.push({ lesson: l, li, ti: 1, ab: labelB, num: lessonNum + 'B' });
+    } else {
+      items.push({ lesson: l, li, ti: 0, ab: null, num: lessonNum });
+    }
+  });
+  return items;
+}
+
+let currentItems = [];
+
 function renderList() {
   const list = document.getElementById('lessonList');
   list.innerHTML = '';
   if (!currentGrade) return;
-  const lessons = DATA[currentGrade];
+  currentItems = buildItems(currentGrade);
   let lastTopic = null;
-  lessons.forEach((l, i) => {
+  currentItems.forEach((item, flatIdx) => {
+    const l = item.lesson;
     if (l.topic !== lastTopic) {
       const tl = document.createElement('div');
       tl.className = 'topic-label';
@@ -196,24 +221,24 @@ function renderList() {
       list.appendChild(tl);
       lastTopic = l.topic;
     }
-    const item = document.createElement('div');
+    const el = document.createElement('div');
     const hasText = l.texts.length > 0;
-    item.className = 'lesson-item' + (hasText ? '' : ' no-text') + (i === currentIdx ? ' active' : '');
-    item.innerHTML = `
-      <span class="lesson-num">${i+1}</span>
+    el.className = 'lesson-item' + (hasText ? '' : ' no-text') + (flatIdx === currentIdx ? ' active' : '') + (item.ab ? ' sub-item' : '');
+    el.innerHTML = `
+      <span class="lesson-num">${item.num}</span>
       <div>
         <div class="lesson-name">${l.lesson}</div>
-        <div class="text-badge">${hasText ? l.texts.length + ' text' + (l.texts.length>1?'s':'') : '<span class="no-text-tag">no text yet</span>'}</div>
+        <div class="text-badge">${item.ab ? `<span class="ab-tag">${item.ab}</span>` : (!hasText ? '<span class="no-text-tag">no text yet</span>' : '')}</div>
       </div>`;
-    if (hasText) item.onclick = () => selectLesson(i);
-    list.appendChild(item);
+    if (hasText) el.onclick = () => selectLesson(flatIdx);
+    list.appendChild(el);
   });
 }
 
-function selectLesson(idx) {
-  currentIdx = idx;
+function selectLesson(flatIdx) {
+  currentIdx = flatIdx;
   renderList();
-  const l = DATA[currentGrade][idx];
+  const { lesson: l, ti } = currentItems[flatIdx];
   const reader = document.getElementById('reader');
 
   let html = `
@@ -225,17 +250,16 @@ function selectLesson(idx) {
   if (l.texts.length === 0) {
     html += `<p class="no-text-msg">No reading text available for this lesson yet.</p>`;
   } else {
-    l.texts.forEach((raw, ti) => {
-      const { textLabel, title, author, body } = parseText(raw);
-      const label = textLabel || (l.texts.length > 1 ? (ti === 0 ? 'Reading A' : 'Reading B') : 'Reading');
-      html += `
-        <div class="text-section">
-          <div class="text-label">${label}</div>
-          ${title ? `<div class="text-title">${title}</div>` : ''}
-          ${author ? `<div class="text-author">${author}</div>` : ''}
-          <div class="text-body">${body.split('\n').map(l=>l.trim()).filter(Boolean).map(l=>`<p>${l.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</p>`).join('')}</div>
-        </div>`;
-    });
+    const raw = l.texts[ti];
+    const { textLabel, title, author, body } = parseText(raw);
+    const label = textLabel || (l.texts.length > 1 ? (ti === 0 ? 'Lesson A' : 'Lesson B') : 'Reading');
+    html += `
+      <div class="text-section">
+        <div class="text-label">${label}</div>
+        ${title ? `<div class="text-title">${title}</div>` : ''}
+        ${author ? `<div class="text-author">${author}</div>` : ''}
+        <div class="text-body">${body.split('\n').map(l=>l.trim()).filter(Boolean).map(l=>`<p>${l.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</p>`).join('')}</div>
+      </div>`;
   }
 
   reader.innerHTML = html;
