@@ -245,13 +245,58 @@ function selectGrade(g) {
     </div>`;
 }
 
-// Split a raw text string on embedded "Text 2:" into separate readings
+// Split a cell that holds more than one reading into separate readings.
+//
+// The marker is written inconsistently in the source sheet — "Text 1:",
+// "Text1:", "Text1 :", "text 2;:", and "Text 2" with no colon at all — and the
+// story title sometimes follows on the same line and sometimes on the next.
+// Matching only "\n\nText 2:" missed 7 of the 25 dual-text cells, which then
+// rendered as one run-on entry. The marker is stripped from the returned text
+// so it never leaks into a story title.
+// "tex[t]?" because one cell is typed "Tex 1:". The optional t costs nothing
+// and "Texas 1" style false positives cannot match — a digit 1 or 2 must follow.
+const TEXT_MARKER = /^[ \t]*tex[t]?[ \t]*([12])[ \t]*[;:.]*[ \t]*/gim;
+
 function splitRawTexts(raw) {
-  const idx = raw.search(/\n\nText 2:/i);
-  if (idx >= 0) {
-    return [raw.slice(0, idx).trim(), raw.slice(idx + 2).trim()];
+  if (!raw) return [];
+  const re = new RegExp(TEXT_MARKER.source, 'gim');
+  const marks = [];
+  let m;
+  while ((m = re.exec(raw)) !== null) {
+    const after = raw.slice(m.index + m[0].length);
+    const nl = after.indexOf('\n');
+    const restOfLine = nl < 0 ? after : after.slice(0, nl);
+    // Accept the label alone on its line, or punctuated with the title beside
+    // it. Anything else is prose that happens to begin "Text 2 …".
+    if (restOfLine.trim() === '' || /[;:.]/.test(m[0])) {
+      marks.push({ start: m.index, end: m.index + m[0].length, n: m[1] });
+    }
+    if (re.lastIndex === m.index) re.lastIndex++;
   }
-  return [raw];
+  if (!marks.length) return raw.trim() ? [raw.trim()] : [];
+
+  const preamble = raw.slice(0, marks[0].start).trim();
+  const parts = [];
+  // Text before the first marker is an instruction belonging to reading 1
+  // ("Read the two stories.") — unless the first marker is Text 2, in which
+  // case reading 1 simply was not labelled and the preamble *is* that reading.
+  const preambleIsOwnReading = preamble && marks[0].n === '2';
+  if (preambleIsOwnReading) parts.push(preamble);
+  marks.forEach((mk, i) => {
+    const end = i + 1 < marks.length ? marks[i + 1].start : raw.length;
+    let seg = raw.slice(mk.end, end).trim();
+    if (i === 0 && preamble && !preambleIsOwnReading) seg = preamble + '\n\n' + seg;
+    if (seg) parts.push(seg);
+  });
+  return parts.length ? parts : [raw.trim()];
+}
+
+// Every reading a lesson holds, flattened: both problem-set cells, each of
+// which may itself contain two readings.
+function lessonReadings(l) {
+  const out = [];
+  (l.texts || []).forEach(raw => splitRawTexts(raw).forEach(t => out.push(t)));
+  return out;
 }
 
 // Extract the main story title from a raw text entry
@@ -266,19 +311,27 @@ function getStoryTitle(raw) {
 }
 
 // Build flat item list for the sidebar — dual-text lessons become two entries
+const AB_LETTERS = 'ABCDEFGH';
+
 function buildItems(grade) {
   const items = [];
   let lessonNum = 0;
   DATA[grade].forEach((l, li) => {
     lessonNum++;
-    if (l.texts.length === 2) {
-      items.push({ lesson: l, li, ti: 0, ab: 'Lesson A', num: lessonNum + 'A',
-        storyTitle: getStoryTitle(l.texts[0]) });
-      items.push({ lesson: l, li, ti: 1, ab: 'Lesson B', num: lessonNum + 'B',
-        storyTitle: getStoryTitle(l.texts[1]) });
+    const readings = lessonReadings(l);
+    if (readings.length > 1) {
+      // One sidebar entry per reading, so Text 2 sits beside Text 1 rather
+      // than being buried inside the same entry.
+      readings.forEach((raw, ri) => items.push({
+        lesson: l, li, ri, raw,
+        ab: 'Lesson ' + AB_LETTERS[ri],
+        num: lessonNum + AB_LETTERS[ri],
+        storyTitle: getStoryTitle(raw),
+      }));
     } else {
-      const title = l.texts.length > 0 ? getStoryTitle(l.texts[0]) : '';
-      items.push({ lesson: l, li, ti: 0, ab: null, num: lessonNum, storyTitle: title });
+      const raw = readings[0] || null;
+      items.push({ lesson: l, li, ri: 0, raw, ab: null, num: lessonNum,
+        storyTitle: raw ? getStoryTitle(raw) : '' });
     }
   });
   return items;
@@ -302,7 +355,7 @@ function renderList() {
       lastTopic = l.topic;
     }
     const el = document.createElement('div');
-    const hasText = l.texts.length > 0;
+    const hasText = !!item.raw;
     el.className = 'lesson-item' + (hasText ? '' : ' no-text') + (flatIdx === currentIdx ? ' active' : '') + (item.ab ? ' sub-item' : '');
     el.innerHTML = `
       <span class="lesson-num">${item.num}</span>
@@ -329,10 +382,11 @@ function renderTextBlock(raw, blockLabel) {
 function selectLesson(flatIdx) {
   currentIdx = flatIdx;
   renderList();
-  const { lesson: l, ti, ab } = currentItems[flatIdx];
+  const item = currentItems[flatIdx];
+  const { lesson: l, ab, raw } = item;
   const reader = document.getElementById('reader');
 
-  const hasText = l.texts.length > 0;
+  const hasText = !!raw;
   let html = `
     <div class="lesson-header">
       <div class="lesson-header-main">
@@ -352,17 +406,7 @@ function selectLesson(flatIdx) {
   if (!hasText) {
     html += `<p class="no-text-msg">No reading text available for this lesson yet.</p>`;
   } else {
-    const raw = l.texts[ti];
-    const parts = splitRawTexts(raw);
-    if (parts.length === 2) {
-      // Cell had Text 1 + Text 2 embedded — show as two blocks
-      html += renderTextBlock(parts[0], 'Text 1');
-      html += renderTextBlock(parts[1], 'Text 2');
-    } else {
-      // Single reading
-      const label = ab ? ab : 'Reading';
-      html += renderTextBlock(raw, label);
-    }
+    html += renderTextBlock(raw, ab ? ab : 'Reading');
   }
 
   reader.innerHTML = html;
