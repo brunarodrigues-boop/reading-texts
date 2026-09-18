@@ -77,7 +77,17 @@
     justify-content: center; height: 100%; color: #d4a98a; text-align: center; gap: 14px; }
   .reader-empty p { font-size: 1.1rem; font-weight: 600; }
 
-  .lesson-header { margin-bottom: 28px; }
+  .lesson-header { margin-bottom: 28px; max-width: 680px; display: flex;
+    align-items: flex-start; justify-content: space-between; gap: 18px; }
+  .lesson-header-main { min-width: 0; }
+
+  /* ── Print button ── */
+  .print-btn { flex-shrink: 0; display: inline-flex; align-items: center; gap: 7px;
+    padding: 9px 18px; border-radius: 24px; border: 2px solid #f97316; background: white;
+    color: #f97316; font-family: 'Nunito', sans-serif; font-size: .95rem; font-weight: 800;
+    cursor: pointer; transition: all .15s; }
+  .print-btn:hover { background: #f97316; color: white; }
+  .print-btn svg { stroke: currentColor; }
   .lesson-header .topic-tag { font-size: .78rem; font-weight: 800; color: #ea580c;
     text-transform: uppercase; letter-spacing: .08em; margin-bottom: 6px; }
   .lesson-header h2 { font-size: 1.1rem; font-weight: 700; color: #7c4a2d; line-height: 1.4; }
@@ -98,6 +108,29 @@
   .text-body p:last-child { margin-bottom: 0; }
 
   .no-text-msg { color: #ccc; font-size: 1rem; margin-top: 40px; text-align: center; font-weight: 600; }
+
+  /* ── Print: just the story, on paper. The app chrome, the colour and the
+        2.0 line-height all exist for reading on screen and only waste paper. ── */
+  @media print {
+    @page { margin: 18mm 16mm; }
+    body { background: #fff; }
+    header, .grade-bar, .sidebar, .print-btn, .reader-empty { display: none !important; }
+    .layout { display: block; height: auto; }
+    .reader { overflow: visible; padding: 0; background: #fff; }
+    .lesson-header { display: block; margin-bottom: 16pt; max-width: none; }
+    .lesson-header .topic-tag { color: #555; font-size: 8.5pt; margin-bottom: 3pt; }
+    .lesson-header h2 { font-size: 11pt; color: #000; font-weight: 700; }
+    /* The reading block already prints its own "LESSON A" label. */
+    .ab-header-tag { display: none; }
+    .text-section { border: 0; box-shadow: none; border-radius: 0; padding: 0;
+      margin: 0 0 20pt; max-width: none; background: #fff; }
+    .text-label { color: #555; font-size: 8.5pt; margin-bottom: 10pt; }
+    .text-title { font-size: 18pt; margin-bottom: 2pt; }
+    .text-author { color: #444; font-size: 10pt; margin-bottom: 14pt; }
+    .text-body { font-size: 12.5pt; line-height: 1.75; color: #000; }
+    /* Never strand a line of a story by itself at a page break. */
+    .text-body p { margin-bottom: .7em; orphans: 3; widows: 3; }
+  }
 
   @media (max-width: 700px) {
     .layout { flex-direction: column; height: auto; }
@@ -299,14 +332,24 @@ function selectLesson(flatIdx) {
   const { lesson: l, ti, ab } = currentItems[flatIdx];
   const reader = document.getElementById('reader');
 
+  const hasText = l.texts.length > 0;
   let html = `
     <div class="lesson-header">
-      <div class="topic-tag">${l.topic}</div>
-      <h2>${l.lesson}</h2>
-      ${ab ? `<div class="ab-header-tag">${ab}</div>` : ''}
+      <div class="lesson-header-main">
+        <div class="topic-tag">${l.topic}</div>
+        <h2>${l.lesson}</h2>
+        ${ab ? `<div class="ab-header-tag">${ab}</div>` : ''}
+      </div>
+      ${hasText ? `<button class="print-btn" onclick="printLesson()" title="Print this story">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke-width="2.2"
+             stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="6 9 6 2 18 2 18 9"/>
+          <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/>
+          <rect x="6" y="14" width="12" height="8"/>
+        </svg>Print</button>` : ''}
     </div>`;
 
-  if (l.texts.length === 0) {
+  if (!hasText) {
     html += `<p class="no-text-msg">No reading text available for this lesson yet.</p>`;
   } else {
     const raw = l.texts[ti];
@@ -324,6 +367,23 @@ function selectLesson(flatIdx) {
 
   reader.innerHTML = html;
   reader.scrollTop = 0;
+}
+
+// Print the open story. The document title becomes the story name first, because
+// that is what the browser stamps in the page header and offers as the filename
+// when the teacher chooses "Save as PDF" — "Reading Lessons" for every story is
+// useless once a few are saved in a folder.
+function printLesson() {
+  const item = currentItems[currentIdx];
+  if (!item) { window.print(); return; }
+  const original = document.title;
+  const name = item.storyTitle || item.lesson.lesson || 'Reading';
+  document.title = item.ab ? `${name} (${item.ab})` : name;
+  const restore = () => { document.title = original; };
+  window.addEventListener('afterprint', restore, { once: true });
+  // Safari does not always fire afterprint; restore on a timer as well.
+  setTimeout(restore, 8000);
+  window.print();
 }
 
 function toggleSidebar() {
