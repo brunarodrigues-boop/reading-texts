@@ -26,6 +26,27 @@
   .grade-btn.active { background: #f97316; color: white; }
   .grade-btn:disabled { opacity: .35; cursor: not-allowed; border-color: #ccc; color: #ccc; }
 
+  /* ── Search ── */
+  .search-wrap { margin-left: auto; position: relative; display: flex; align-items: center; }
+  .search-input { width: 250px; max-width: 46vw; padding: 8px 30px 8px 34px; border-radius: 22px;
+    border: 2px solid #ffd9bd; background: #fffaf6; color: #1a1a1a;
+    font-family: 'Nunito', sans-serif; font-size: .95rem; font-weight: 600; outline: none;
+    transition: border-color .15s, background .15s; }
+  .search-input::placeholder { color: #c9a58c; font-weight: 600; }
+  .search-input:focus { border-color: #f97316; background: #fff; }
+  .search-icon { position: absolute; left: 11px; width: 15px; height: 15px; stroke: #e09a6a;
+    pointer-events: none; }
+  .search-clear { position: absolute; right: 8px; border: none; background: none; cursor: pointer;
+    color: #c9a58c; font-size: 1.15rem; line-height: 1; padding: 2px 4px; border-radius: 50%; }
+  .search-clear:hover { color: #ea580c; background: #fff1e6; }
+  .search-count { padding: 9px 14px 6px; font-size: .78rem; font-weight: 700; color: #9a6448;
+    background: #fff3ea; border-bottom: 1px solid #ffe8d6; }
+  .result-grade { display: inline-block; font-size: .68rem; font-weight: 800; letter-spacing: .04em;
+    background: #ffe8d6; color: #b4531a; border-radius: 8px; padding: 1px 7px; margin-top: 4px; }
+  .lesson-item.active .result-grade { background: #f97316; color: #fff; }
+  .search-none { padding: 26px 18px; text-align: center; color: #c9a58c; font-weight: 600;
+    font-size: .92rem; line-height: 1.5; }
+
   /* ── Layout ── */
   .layout { display: flex; height: calc(100vh - 112px); }
 
@@ -114,7 +135,8 @@
   @media print {
     @page { margin: 18mm 16mm; }
     body { background: #fff; }
-    header, .grade-bar, .sidebar, .print-btn, .reader-empty { display: none !important; }
+    header, .grade-bar, .sidebar, .print-btn, .reader-empty,
+    .search-wrap, .search-count { display: none !important; }
     .layout { display: block; height: auto; }
     .reader { overflow: visible; padding: 0; background: #fff; }
     .lesson-header { display: block; margin-bottom: 16pt; max-width: none; }
@@ -153,7 +175,17 @@
   <h1>Reading Time!</h1>
 </header>
 
-<div class="grade-bar"><span class="grade-bar-label">My Grade:</span><span id="gradeBar" style="display:flex;gap:10px;flex-wrap:wrap;"></span></div>
+<div class="grade-bar">
+  <span class="grade-bar-label">My Grade:</span>
+  <span id="gradeBar" style="display:flex;gap:10px;flex-wrap:wrap;"></span>
+  <span class="search-wrap">
+    <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+    <input id="searchInput" class="search-input" type="search" autocomplete="off"
+           placeholder="Search all stories…" oninput="onSearch(this.value)">
+    <button class="search-clear" id="searchClear" title="Clear search"
+            onclick="clearSearch()" style="display:none">&times;</button>
+  </span>
+</div>
 
 <div class="layout">
   <div class="sidebar" id="sidebar">
@@ -234,6 +266,15 @@ function renderGrades() {
 function selectGrade(g) {
   currentGrade = g;
   currentIdx   = null;
+  // Choosing a grade means "show me this grade", so a live search is dropped
+  // rather than silently ignored while the list keeps showing other grades.
+  if (searchQuery.trim()) {
+    searchQuery = '';
+    const box = document.getElementById('searchInput');
+    if (box) box.value = '';
+    const clr = document.getElementById('searchClear');
+    if (clr) clr.style.display = 'none';
+  }
   renderGrades();
   renderList();
   document.getElementById('reader').innerHTML = `
@@ -338,16 +379,82 @@ function buildItems(grade) {
 }
 
 let currentItems = [];
+let searchQuery = '';
+
+// buildItems re-splits every cell, so cache per grade: the search runs over all
+// six grades on each keystroke and there is no reason to redo that work.
+const _itemCache = {};
+function itemsFor(grade) {
+  if (!_itemCache[grade]) _itemCache[grade] = buildItems(grade);
+  return _itemCache[grade];
+}
+
+function esc(t) {
+  return String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+// Search spans every grade, not just the one selected. Someone looking for a
+// story usually remembers the story, not which grade it sits in — and half the
+// readings live under a lesson name that never mentions them.
+function searchResults(q) {
+  const needle = q.trim().toLowerCase();
+  if (!needle) return [];
+  const out = [];
+  Object.keys(DATA).forEach(g => {
+    itemsFor(g).forEach(item => {
+      if (!item.raw) return;               // nothing to read, nothing to find
+      const hay = [item.storyTitle, item.lesson.lesson, item.lesson.topic, item.raw]
+        .filter(Boolean).join(' \n ').toLowerCase();
+      if (hay.includes(needle)) out.push({ ...item, grade: g });
+    });
+  });
+  return out;
+}
+
+function onSearch(v) {
+  searchQuery = v;
+  document.getElementById('searchClear').style.display = v.trim() ? '' : 'none';
+  currentIdx = null;
+  renderList();
+}
+
+function clearSearch() {
+  const box = document.getElementById('searchInput');
+  box.value = '';
+  onSearch('');
+  box.focus();
+}
 
 function renderList() {
   const list = document.getElementById('lessonList');
   list.innerHTML = '';
-  if (!currentGrade) return;
-  currentItems = buildItems(currentGrade);
+  const searching = !!searchQuery.trim();
+  if (!searching && !currentGrade) return;
+
+  if (searching) {
+    currentItems = searchResults(searchQuery);
+    const n = currentItems.length;
+    const count = document.createElement('div');
+    count.className = 'search-count';
+    count.textContent = n === 1 ? '1 story found' : `${n} stories found`;
+    list.appendChild(count);
+    if (!n) {
+      const none = document.createElement('div');
+      none.className = 'search-none';
+      none.textContent = 'No story matches that. Try part of a title, an author, or a few words from the text.';
+      list.appendChild(none);
+      return;
+    }
+  } else {
+    currentItems = itemsFor(currentGrade);
+  }
+
   let lastTopic = null;
   currentItems.forEach((item, flatIdx) => {
     const l = item.lesson;
-    if (l.topic !== lastTopic) {
+    // Topic headings only make sense in grade order; a result list is not
+    // grouped that way, so each row carries its own grade badge instead.
+    if (!searching && l.topic !== lastTopic) {
       const tl = document.createElement('div');
       tl.className = 'topic-label';
       tl.textContent = l.topic;
@@ -356,13 +463,19 @@ function renderList() {
     }
     const el = document.createElement('div');
     const hasText = !!item.raw;
-    el.className = 'lesson-item' + (hasText ? '' : ' no-text') + (flatIdx === currentIdx ? ' active' : '') + (item.ab ? ' sub-item' : '');
-    el.innerHTML = `
-      <span class="lesson-num">${item.num}</span>
-      <div style="min-width:0">
-        <div class="lesson-title">${l.lesson}</div>
-        ${item.ab ? `<span class="ab-tag">${item.ab}</span>` : (!hasText ? '<div class="lesson-skill">coming soon</div>' : '')}
-      </div>`;
+    el.className = 'lesson-item' + (hasText ? '' : ' no-text') + (flatIdx === currentIdx ? ' active' : '') + (item.ab && !searching ? ' sub-item' : '');
+    el.innerHTML = searching
+      ? `<span class="lesson-num">${esc(item.num)}</span>
+         <div style="min-width:0">
+           <div class="lesson-title">${esc(item.storyTitle || l.lesson)}</div>
+           <div class="lesson-skill">${esc(l.lesson)}</div>
+           <span class="result-grade">Grade ${esc(item.grade)}</span>
+         </div>`
+      : `<span class="lesson-num">${item.num}</span>
+         <div style="min-width:0">
+           <div class="lesson-title">${l.lesson}</div>
+           ${item.ab ? `<span class="ab-tag">${item.ab}</span>` : (!hasText ? '<div class="lesson-skill">coming soon</div>' : '')}
+         </div>`;
     if (hasText) el.onclick = () => selectLesson(flatIdx);
     list.appendChild(el);
   });
