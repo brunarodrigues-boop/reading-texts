@@ -120,6 +120,9 @@
     box-shadow: 0 2px 8px rgba(249,115,22,.06); }
   .text-label { font-size: .75rem; font-weight: 800; text-transform: uppercase;
     letter-spacing: .1em; color: #f97316; margin-bottom: 14px; }
+  .text-instruction { font-size: .88rem; color: #8a6a55; background: #fff6ee;
+    border-left: 3px solid #ffd2ac; border-radius: 0 8px 8px 0;
+    padding: 8px 12px; margin-bottom: 16px; line-height: 1.45; }
   .text-title { font-size: 1.5rem; font-weight: 800; margin-bottom: 4px; color: #1a1a1a;
     line-height: 1.25; font-family: 'Nunito', sans-serif; }
   .text-author { font-size: .9rem; color: #999; margin-bottom: 20px; font-style: italic; }
@@ -147,6 +150,8 @@
     .text-section { border: 0; box-shadow: none; border-radius: 0; padding: 0;
       margin: 0 0 20pt; max-width: none; background: #fff; }
     .text-label { color: #555; font-size: 8.5pt; margin-bottom: 10pt; }
+    .text-instruction { background: none; border-left: 0; padding: 0; color: #444;
+      font-size: 9.5pt; font-style: italic; margin-bottom: 10pt; }
     .text-title { font-size: 18pt; margin-bottom: 2pt; }
     .text-author { color: #444; font-size: 10pt; margin-bottom: 14pt; }
     .text-body { font-size: 12.5pt; line-height: 1.75; color: #000; }
@@ -223,42 +228,96 @@ function looksLikeTitle(line) {
   return !!t && t.length <= TITLE_MAX;
 }
 
+// A task instruction the lesson puts above the passage: "Read the passage and
+// answer the questions that follow." It is not the story's name, and shown as
+// the heading it displaced the real one — 84 of the 85 readings that opened
+// this way have their actual title on the very next line ("Old Greek Stories",
+// "Tanisha's Shoe"). Both halves are required: the imperative opener, and the
+// closing full stop or colon that a title would not carry. That keeps real
+// titles such as "Reading's the Worst!" and "Use Your Words" out of it.
+const INSTRUCTION_RE = /^(re-?read|read|review|look|listen|choose|select|write|complete|drag|click|use)\b.*[.:]$|^(the following|you have already read|first,? re-?read|first,? read)\b.*[.:]$/i;
+// Two copies of the same grade 3 stories carry a leading double quote that has
+// no partner -- a paste artifact, not part of the name -- which made them read
+// as different stories from their twins elsewhere in the data.
+function cleanTitle(line) {
+  let t = (line || '').trim();
+  if (t.length > 1 && t[0] === '"' && t[t.length - 1] === '"') t = t.slice(1, -1).trim();
+  else if (t[0] === '"' && !t.includes('"', 1)) t = t.slice(1).trim();
+  return t;
+}
+
+function looksLikeInstruction(line) {
+  const t = (line || '').trim();
+  return !!t && INSTRUCTION_RE.test(t);
+}
+
 function parseText(raw) {
   const lines = raw.split('\n');
   let i = 0;
-  let textLabel = '', title = '', subtitle = '', author = '';
+  let textLabel = '', title = '', subtitle = '', author = '', instruction = '';
 
   // Optional "Text N:" label (for compare-contrast lessons)
   if (lines[i] && /^Text \d+:?\s*$/i.test(lines[i].trim())) {
     textLabel = lines[i++].trim().replace(/:$/, '');
   }
 
+  // A leading task instruction is kept, but as guidance above the passage
+  // rather than as its heading.
+  const preamble = [];
+  while (i < lines.length) {
+    while (i < lines.length && !lines[i].trim()) i++;
+    if (i < lines.length && looksLikeInstruction(lines[i])) preamble.push(lines[i++].trim());
+    else break;
+  }
+  instruction = preamble.join(' ');
+
   // Title — only when the line is plausibly one. Otherwise the reading has no
   // title and every line, including this one, is body.
   while (i < lines.length && !lines[i].trim()) i++;
-  if (i < lines.length && looksLikeTitle(lines[i])) title = lines[i++];
+  if (i < lines.length && looksLikeTitle(lines[i])) title = cleanTitle(lines[i++]);
 
-  // Subtitle/series — a non-author line immediately before the author line or a blank line
-  if (i < lines.length && lines[i].trim() && !/^(written by|by )\s/i.test(lines[i].trim())) {
-    const next = lines[i + 1] || '';
-    if (/^(written by|by )\s/i.test(next.trim()) || !next.trim()) {
-      subtitle = lines[i++];
+  // Subtitle and author only mean anything UNDER a title. Without one there is
+  // no title block, so nothing here is a byline — it is the opening of the
+  // passage. Running this regardless is what put a 700-character paragraph in
+  // the author slot, in italics, once the title guard stopped it being the
+  // heading: the fault moved rather than went away.
+  if (title) {
+    // Subtitle/series — a non-author line immediately before the author line or a blank line
+    if (i < lines.length && lines[i].trim() && !/^(written by|by )\s/i.test(lines[i].trim())) {
+      const next = lines[i + 1] || '';
+      if (/^(written by|by )\s/i.test(next.trim()) || !next.trim()) {
+        subtitle = lines[i++];
+      }
     }
-  }
 
-  // Author: handles "Written by", "Written By", "By "
-  if (i < lines.length && /^(written by|by )\s/i.test(lines[i].trim())) {
-    author = lines[i++];
-  }
+    // Author: handles "Written by", "Written By", "By "
+    if (i < lines.length && /^(written by|by )\s/i.test(lines[i].trim())) {
+      author = lines[i++];
+    }
 
-  // Combine subtitle into author display
-  if (subtitle) author = subtitle + (author ? ' — ' + author : '');
+    // Combine subtitle into author display
+    if (subtitle) author = subtitle + (author ? ' \u2014 ' + author : '');
+  }
 
   // Skip blank lines before body
   while (i < lines.length && !lines[i].trim()) i++;
 
-  const body = lines.slice(i).join('\n').trim();
-  return { textLabel, title, author, body };
+  let body = lines.slice(i).join('\n').trim();
+
+  // Several untitled excerpts close with their source instead of opening with
+  // it: "\u2014 adapted from Gulliver's Travels by Jonathan Swift". That is a
+  // byline, so it is shown as one rather than left to read as a final
+  // paragraph of the story.
+  if (!author) {
+    const bl = body.split('\n');
+    const last = (bl[bl.length - 1] || '').trim();
+    if (bl.length > 1 && /^[\u2013\u2014-]\s*\S/.test(last) && last.length <= 120) {
+      author = last.replace(/^[\u2013\u2014-]\s*/, '').trim();
+      body = bl.slice(0, -1).join('\n').trim();
+    }
+  }
+
+  return { textLabel, title, author, body, instruction };
 }
 
 function renderGrades() {
@@ -359,7 +418,14 @@ function getStoryTitle(raw) {
   const lines = raw.split('\n');
   // Skip "Text N:" label line if present
   let i = /^Text \d+:?\s*$/i.test(lines[0] ? lines[0].trim() : '') ? 1 : 0;
-  const titleLine = (lines[i] || '').replace(/^Text \d+:\s*/i, '').trim();
+  while (i < lines.length && !lines[i].trim()) i++;
+  // Skip the same leading instruction parseText skips, so the sidebar and the
+  // search results name the story rather than repeating the task.
+  while (i < lines.length && looksLikeInstruction(lines[i])) {
+    i++;
+    while (i < lines.length && !lines[i].trim()) i++;
+  }
+  const titleLine = cleanTitle((lines[i] || '').replace(/^Text \d+:\s*/i, ''));
   // Same rule as parseText: a paragraph is not a title. Returning '' lets the
   // caller fall back to the lesson name rather than putting a wall of prose in
   // the sidebar or a search result.
@@ -497,10 +563,11 @@ function renderList() {
 }
 
 function renderTextBlock(raw, blockLabel) {
-  const { title, author, body } = parseText(raw);
+  const { title, author, body, instruction } = parseText(raw);
   return `
     <div class="text-section">
       <div class="text-label">${blockLabel}</div>
+      ${instruction ? `<div class="text-instruction">${esc(instruction)}</div>` : ''}
       ${title ? `<div class="text-title">${title}</div>` : ''}
       ${author ? `<div class="text-author">${author}</div>` : ''}
       <div class="text-body">${body.split('\n').map(l=>l.trim()).filter(Boolean).map(l=>`<p>${l.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</p>`).join('')}</div>
