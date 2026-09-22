@@ -26,6 +26,22 @@
   .grade-btn.active { background: #f97316; color: white; }
   .grade-btn:disabled { opacity: .35; cursor: not-allowed; border-color: #ccc; color: #ccc; }
 
+  /* ── Underlining ── */
+  .tool-btn { flex-shrink: 0; display: inline-flex; align-items: center; gap: 7px;
+    padding: 9px 16px; border-radius: 24px; border: 2px solid #f97316; background: white;
+    color: #f97316; font-family: 'Nunito', sans-serif; font-size: .95rem; font-weight: 800;
+    cursor: pointer; transition: all .15s; }
+  .tool-btn:hover { background: #fff1e6; }
+  .tool-btn.on { background: #f97316; color: white; }
+  .tool-btn svg { stroke: currentColor; }
+  .ul { border-bottom: 3px solid #f97316; padding-bottom: 1px; }
+  .marking .text-body { cursor: text; }
+  .marking .ul { cursor: pointer; }
+  .marking .ul:hover { background: #fff1e6; }
+  .mark-hint { font-size: .85rem; color: #9a6448; background: #fff6ee;
+    border-left: 3px solid #f97316; border-radius: 0 8px 8px 0; padding: 7px 12px;
+    margin-bottom: 14px; max-width: 680px; }
+
   /* ── Search ── */
   .search-wrap { margin-left: auto; position: relative; display: flex; align-items: center; }
   .search-input { width: 250px; max-width: 46vw; padding: 8px 30px 8px 34px; border-radius: 22px;
@@ -157,6 +173,9 @@
     .text-body { font-size: 12.5pt; line-height: 1.75; color: #000; }
     /* Never strand a line of a story by itself at a page break. */
     .text-body p { margin-bottom: .7em; orphans: 3; widows: 3; }
+    /* O sublinhado é trabalho do aluno: vai para o papel, a preto. */
+    .ul { border-bottom: 1.2pt solid #000; }
+    .tool-btn, .mark-hint { display: none !important; }
   }
 
   @media (max-width: 700px) {
@@ -445,14 +464,14 @@ function buildItems(grade) {
       // One sidebar entry per reading, so Text 2 sits beside Text 1 rather
       // than being buried inside the same entry.
       readings.forEach((raw, ri) => items.push({
-        lesson: l, li, ri, raw,
+        lesson: l, li, ri, raw, grade,
         ab: 'Lesson ' + AB_LETTERS[ri],
         num: lessonNum + AB_LETTERS[ri],
         storyTitle: getStoryTitle(raw),
       }));
     } else {
       const raw = readings[0] || null;
-      items.push({ lesson: l, li, ri: 0, raw, ab: null, num: lessonNum,
+      items.push({ lesson: l, li, ri: 0, raw, grade, ab: null, num: lessonNum,
         storyTitle: raw ? getStoryTitle(raw) : '' });
     }
   });
@@ -562,6 +581,127 @@ function renderList() {
   });
 }
 
+// ── Underlining ─────────────────────────────────────────────────────────
+//
+// Marks are stored as character offsets into each paragraph's plain text, not
+// as wrapped DOM nodes. That is what makes them survive a reload, print
+// correctly, and stay correct when two marks overlap — wrapping nodes as the
+// reader selects would nest spans and fall apart on the second pass.
+let underlineOn = false;
+let marks = [];          // {b: block, p: paragraph, s: start, e: end}
+let marksKey = '';
+let currentParas = [];   // plain text of every paragraph, per block
+
+function markKeyFor(item) {
+  return 'rt-ul:' + [item.grade, item.lesson.topic, item.lesson.lesson,
+                     item.ab || ''].join('|');
+}
+
+function loadMarks(key) {
+  try { return JSON.parse(localStorage.getItem(key)) || []; } catch (e) { return []; }
+}
+
+function saveMarks() {
+  try { localStorage.setItem(marksKey, JSON.stringify(marks)); } catch (e) { /* cheio ou bloqueado */ }
+}
+
+// Overlapping marks become one, so re-underlining a phrase cannot stack spans.
+function mergedFor(b, p) {
+  const r = marks.filter(m => m.b === b && m.p === p)
+                 .map(m => [m.s, m.e]).sort((x, y) => x[0] - y[0]);
+  const out = [];
+  for (const [s, e] of r) {
+    if (out.length && s <= out[out.length - 1][1]) {
+      out[out.length - 1][1] = Math.max(out[out.length - 1][1], e);
+    } else out.push([s, e]);
+  }
+  return out;
+}
+
+function paraHTML(text, ranges) {
+  let out = '', pos = 0;
+  for (const [s, e] of ranges) {
+    out += esc(text.slice(pos, s));
+    out += '<span class="ul">' + esc(text.slice(s, e)) + '</span>';
+    pos = e;
+  }
+  return out + esc(text.slice(pos));
+}
+
+function paintMarks() {
+  document.querySelectorAll('.text-body').forEach((body, b) => {
+    const paras = currentParas[b] || [];
+    body.innerHTML = paras.map((t, i) =>
+      '<p data-b="' + b + '" data-p="' + i + '">' + paraHTML(t, mergedFor(b, i)) + '</p>'
+    ).join('');
+  });
+}
+
+// Character offset of a point inside a paragraph, counting only text.
+function offsetIn(para, node, offset) {
+  const walker = document.createTreeWalker(para, NodeFilter.SHOW_TEXT);
+  let n = 0, cur;
+  while ((cur = walker.nextNode())) {
+    if (cur === node) return n + offset;
+    n += cur.nodeValue.length;
+  }
+  return n;
+}
+
+function toggleUnderline() {
+  underlineOn = !underlineOn;
+  document.getElementById('reader').classList.toggle('marking', underlineOn);
+  const b = document.getElementById('ulBtn');
+  if (b) b.classList.toggle('on', underlineOn);
+  const h = document.getElementById('ulHint');
+  if (h) h.style.display = underlineOn ? '' : 'none';
+}
+
+function eraseMarks() {
+  if (!marks.length) return;
+  marks = [];
+  saveMarks();
+  paintMarks();
+}
+
+// Selecting while underlining turns the selection into marks, one per
+// paragraph it touches, so a selection spanning three paragraphs underlines
+// all three and nothing in between.
+function onReaderMouseUp() {
+  if (!underlineOn) return;
+  const sel = window.getSelection();
+  if (!sel || sel.isCollapsed || !sel.rangeCount) return;
+  const range = sel.getRangeAt(0);
+  let added = false;
+  document.querySelectorAll('.text-body p[data-p]').forEach(para => {
+    if (!range.intersectsNode(para)) return;
+    const txt = para.textContent;
+    let s = 0, e = txt.length;
+    if (para.contains(range.startContainer)) s = offsetIn(para, range.startContainer, range.startOffset);
+    if (para.contains(range.endContainer)) e = offsetIn(para, range.endContainer, range.endOffset);
+    if (e > s) {
+      marks.push({ b: +para.dataset.b, p: +para.dataset.p, s: s, e: e });
+      added = true;
+    }
+  });
+  if (added) { sel.removeAllRanges(); saveMarks(); paintMarks(); }
+}
+
+// Clicking an underline removes it — no separate eraser mode to get stuck in.
+function onReaderClick(ev) {
+  if (!underlineOn || !ev.target.closest) return;
+  const span = ev.target.closest('.ul');
+  if (!span) return;
+  const para = span.closest('p[data-p]');
+  if (!para) return;
+  const b = +para.dataset.b, pi = +para.dataset.p;
+  const start = offsetIn(para, span.firstChild, 0);
+  const end = start + span.textContent.length;
+  marks = marks.filter(m => !(m.b === b && m.p === pi && m.s < end && m.e > start));
+  saveMarks();
+  paintMarks();
+}
+
 function renderTextBlock(raw, blockLabel) {
   const { title, author, body, instruction } = parseText(raw);
   return `
@@ -570,7 +710,12 @@ function renderTextBlock(raw, blockLabel) {
       ${instruction ? `<div class="text-instruction">${esc(instruction)}</div>` : ''}
       ${title ? `<div class="text-title">${title}</div>` : ''}
       ${author ? `<div class="text-author">${author}</div>` : ''}
-      <div class="text-body">${body.split('\n').map(l=>l.trim()).filter(Boolean).map(l=>`<p>${l.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</p>`).join('')}</div>
+      <div class="text-body">${(() => {
+        const paras = body.split('\n').map(l => l.trim()).filter(Boolean);
+        currentParas.push(paras);
+        const b = currentParas.length - 1;
+        return paras.map((t, i) => `<p data-b="${b}" data-p="${i}">${esc(t)}</p>`).join('');
+      })()}</div>
     </div>`;
 }
 
@@ -589,7 +734,18 @@ function selectLesson(flatIdx) {
         <h2>${l.lesson}</h2>
         ${ab ? `<div class="ab-header-tag">${ab}</div>` : ''}
       </div>
-      ${hasText ? `<button class="print-btn" onclick="printLesson()" title="Print this story">
+      ${hasText ? `<button class="tool-btn" id="ulBtn" onclick="toggleUnderline()"
+        title="Underline as you read">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke-width="2.2"
+             stroke-linecap="round" stroke-linejoin="round">
+          <path d="M6 3v7a6 6 0 0 0 12 0V3"/><line x1="4" y1="21" x2="20" y2="21"/>
+        </svg>Underline</button>
+      <button class="tool-btn" onclick="eraseMarks()" title="Remove every underline">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke-width="2.2"
+             stroke-linecap="round" stroke-linejoin="round">
+          <path d="M3 21h18"/><path d="M15.5 4.5l4 4L9 19H5v-4z"/>
+        </svg>Erase</button>
+      <button class="print-btn" onclick="printLesson()" title="Print this story">
         <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke-width="2.2"
              stroke-linecap="round" stroke-linejoin="round">
           <polyline points="6 9 6 2 18 2 18 9"/>
@@ -601,10 +757,20 @@ function selectLesson(flatIdx) {
   if (!hasText) {
     html += `<p class="no-text-msg">No reading text available for this lesson yet.</p>`;
   } else {
+    html += `<div class="mark-hint" id="ulHint"${underlineOn ? '' : ' style="display:none"'}>` +
+            'Select any words to underline them. Tap an underline to take it away. ' +
+            'Your marks are saved on this computer.</div>';
+    currentParas = [];
+    marksKey = markKeyFor(item);
+    marks = loadMarks(marksKey);
     html += renderTextBlock(raw, ab ? ab : 'Reading');
   }
 
   reader.innerHTML = html;
+  reader.classList.toggle('marking', underlineOn);
+  const ulb = document.getElementById('ulBtn');
+  if (ulb) ulb.classList.toggle('on', underlineOn);
+  if (hasText) paintMarks();
   reader.scrollTop = 0;
 }
 
@@ -632,6 +798,11 @@ function toggleSidebar() {
   toggleBtn.innerHTML = collapsed ? '&#x2192;' : '&#x2190;';
   toggleBtn.title = collapsed ? 'Show lessons' : 'Hide lessons';
 }
+
+const _reader = document.getElementById('reader');
+_reader.addEventListener('mouseup', onReaderMouseUp);
+_reader.addEventListener('touchend', onReaderMouseUp);
+_reader.addEventListener('click', onReaderClick);
 
 // Init — default to grade 3
 renderGrades();
